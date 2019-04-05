@@ -147,12 +147,17 @@ class CreateModel():
     
     
 def run_one_sample(template, image):
+    """
+    run qatm with singke sample image and single/multi template image(s)
+    """
+    print("extract conf maps...")
     val = model(template, image)
     if val.is_cuda:
         val = val.cpu()
     val = val.numpy()
     val = np.log(val)
     
+    print("calculate scores...")
     batch_size = val.shape[0]
     scores = []
     for i in range(batch_size):
@@ -176,7 +181,9 @@ if __name__ == '__main__':
     template_list = ['template/template1_1.png', 'template/template1_2.png', 'template/template1_dummy.png']
     template = make_img_tensor(template_list)
     
+    print("define model...")
     model = CreateModel(model=models.vgg19(pretrained=True).features, alpha=25, use_cuda=True)
     scores = run_one_sample(template, image)
     boxes, indices = nms_multi(scores, template.size()[-1], template.size()[-2], thresh=0.5)
     _ = plot_result_multi(image_raw, boxes, indices, show=False, save_name='result.png')
+    print("result.png was saved")
