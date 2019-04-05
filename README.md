@@ -2,6 +2,7 @@
 
 arxiv: https://arxiv.org/abs/1903.07254  
 original code (tensorflow+keras): https://github.com/cplusx/QATM  
+Qiita(Japanese): https://qiita.com/kamata1729/items/11fd55992c740526f6fc
 
 # Dependencies
 
