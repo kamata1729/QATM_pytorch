@@ -7,6 +7,8 @@ import torch.nn.functional as F
 import torchvision
 from torchvision import models, transforms, utils
 import copy
+import argparse
+
 from utils import *
 from lib import *
 
@@ -174,16 +176,30 @@ def run_one_sample(template, image):
 
 
 if __name__ == '__main__':
-    image = make_img_tensor(['sample/sample1.jpg'])
-    image_raw = cv2.imread('sample/sample1.jpg')
+    parser = argparse.ArgumentParser(description='QATM Pytorch Implementation')
+    parser.add_argument('--cuda', action='store_true')
+    parser.add_argument('-s', '--sample_image')
+    parser.add_argument('-t', '--template_images', nargs='*')
+    parser.add_argument('--alpha', type=float, default=25)
+    parser.add_argument('--thresh', type=float, default=0.5)
+    args = parser.parse_args()
     
+    image_path = args.sample_image
     # template images must have same size
-    template_list = ['template/template1_1.png', 'template/template1_2.png', 'template/template1_dummy.png']
+    template_list = args.template_images
+    
+    if not image_path or not template_list:
+        print("Either --sample_image or --template_images is not specified, so demo program running...")
+        image_path = 'sample/sample1.jpg'
+        template_list = ['template/template1_1.png', 'template/template1_2.png', 'template/template1_dummy.png']
+        
+    image = make_img_tensor([image_path])
+    image_raw = cv2.imread(image_path)
     template = make_img_tensor(template_list)
     
     print("define model...")
-    model = CreateModel(model=models.vgg19(pretrained=True).features, alpha=25, use_cuda=True)
+    model = CreateModel(model=models.vgg19(pretrained=True).features, alpha=args.alpha, use_cuda=args.cuda)
     scores = run_one_sample(template, image)
-    boxes, indices = nms_multi(scores, template.size()[-1], template.size()[-2], thresh=0.5)
+    boxes, indices = nms_multi(scores, template.size()[-1], template.size()[-2], thresh=args.thresh)
     _ = plot_result_multi(image_raw, boxes, indices, show=False, save_name='result.png')
     print("result.png was saved")
