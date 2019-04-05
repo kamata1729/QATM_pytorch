@@ -1,2 +1,4 @@
 __pycache__
 .ipynb_checkpoints
+sample_private/
+template_private/
