@@ -16,7 +16,7 @@ Qiita(Japanese): https://qiita.com/kamata1729/items/11fd55992c740526f6fc
 
 # Usage
 
-see [`qatm_pytorch.ipynb`](https://github.com/kamata1729/QATM_pytorch/blob/master/qatm_pytorch.ipynb)
+See [`qatm_pytorch.ipynb`](https://github.com/kamata1729/QATM_pytorch/blob/master/qatm_pytorch.ipynb)
 
 or
 
