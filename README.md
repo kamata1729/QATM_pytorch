@@ -30,7 +30,7 @@ python qatm.py -s sample/sample1.jpg -t template --cuda
     **only single** sample image can be specified in this present implementation  
 * Add `-t`/`--template_images_dir` to specify template image dir  
   
-**[notice]** If neither `-s` nor `-t` is specified, demo program will be executed, which is the same as:
+**[notice]** If neither `-s` nor `-t` is specified, the demo program will be executed, which is the same as:
 ```
 python qatm.py -s sample/sample1.jpg -t template
 ```
@@ -38,10 +38,10 @@ python qatm.py -s sample/sample1.jpg -t template
 * `--thresh` and `--alpha` option can also be added
 
 # Result of Demo
-`template1_1.png` and `template1_2.png` are contained in `sample1.jpg`, however, `template1_dummy.png` is a dummy and not contained
+`template1_1.png` to `template1_4.png` are contained in `sample1.jpg`, however, `template1_dummy.png` is a dummy and not contained
 
-|template1_1.png|template1_2.png|template1_dummy.png|
-|---|---|---|
-|![](https://i.imgur.com/lP0Wy4I.png)|![](https://i.imgur.com/xDJoQOz.png)|![](https://i.imgur.com/p10g33j.png)|
+|template1_1.png|template1_2.png|template1_3.png|template1_4.png|template1_dummy.png|
+|---|---|---|---|---|
+|![](https://i.imgur.com/lP0Wy4I.png)|![](https://i.imgur.com/xDJoQOz.png)|![image.png](https://qiita-image-store.s3.amazonaws.com/0/262908/472c81ae-9afb-db49-a64c-86604cbe0884.png)|![image.png](https://qiita-image-store.s3.amazonaws.com/0/262908/d402a9d2-bbd4-5353-16aa-567b79ca06b8.png)|![](https://i.imgur.com/p10g33j.png)|
 
-![](https://i.imgur.com/7Ln2z0H.png)
+![image.png](https://qiita-image-store.s3.amazonaws.com/0/262908/2e4c4b8b-2889-7962-4f35-c313048dc403.png)
