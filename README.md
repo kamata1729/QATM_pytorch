@@ -35,7 +35,7 @@ python qatm.py -s sample/sample1.jpg -t template --cuda
 python qatm.py -s sample/sample1.jpg -t template
 ```
 
-* `--thresh` and `--alpha` option can also be added
+* `--thresh_csv` and `--alpha` option can also be added
 
 # Result of Demo
 `template1_1.png` to `template1_4.png` are contained in `sample1.jpg`, however, `template1_dummy.png` is a dummy and not contained
