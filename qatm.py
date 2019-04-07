@@ -13,30 +13,40 @@ from utils import *
 from lib import *
 
 
-def make_img_tensor(img_names, mult=1.0):
+class ImageDataset(torch.utils.data.Dataset):
     """
-    make image tensor from image names list
+    define Dataset
     """
+    def __init__(self, template_names: list, image_name: str, transform=None):
+        self.transform = transform
+        if not self.transform:
+            self.transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225],
+                )
+            ])
+        self.template_names = template_names
+        self.image_name = image_name
+        
+        self.image_raw = cv2.imread(self.image_name)
+        if self.transform:
+            self.image = self.transform(self.image_raw)
+        
+    def __len__(self):
+        return len(self.template_names)
     
-    image_transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225],
-        )
-    ])
-    
-    result_tensor = None
-    for name in img_names:
-        img_raw = cv2.imread(name)
-        img_raw = cv2.resize(img_raw, dsize=None, fx=mult, fy=mult)
-        img_tensor = image_transform (img_raw).unsqueeze(0)
-        if result_tensor is None:
-            result_tensor = img_tensor
-        else:
-            # size of each template image must be same
-            result_tensor = torch.cat([result_tensor, img_tensor], dim=0)
-    return result_tensor
+    def __getitem__(self, idx):
+        template = cv2.imread(self.template_names[idx])
+        if self.transform:
+            template = self.transform(template)
+        return {'image': self.image.unsqueeze(0), 
+                    'image_raw': self.image_raw, 
+                    'template': template.unsqueeze(0), 
+                    'template_name': self.template_names[idx], 
+                    'template_h': template.size()[-2],
+                   'template_w': template.size()[-1]}
 
 
 class Featex():
@@ -147,19 +157,14 @@ class CreateModel():
                 conf_maps = torch.cat([conf_maps, conf_map], dim=0)
         return conf_maps
     
-    
+
 def run_one_sample(template, image):
-    """
-    run qatm with singke sample image and single/multi template image(s)
-    """
-    print("extract conf maps...")
     val = model(template, image)
     if val.is_cuda:
         val = val.cpu()
     val = val.numpy()
     val = np.log(val)
     
-    print("calculate scores...")
     batch_size = val.shape[0]
     scores = []
     for i in range(batch_size):
@@ -173,6 +178,21 @@ def run_one_sample(template, image):
         score = np.exp(score / (h*w)) # reverse number range back after computing geometry average
         scores.append(score)
     return np.array(scores)
+    
+    
+def run_multi_sample(dataset):
+    scores = None
+    w_array = []
+    h_array = []
+    for data in dataset:
+        score = run_one_sample(data['template'], data['image'])
+        if scores is None:
+            scores = score
+        else:
+            scores = np.concatenate([scores, score], axis=0)
+        w_array.append(data['template_w'])
+        h_array.append(data['template_h'])
+    return np.array(scores), np.array(w_array), np.array(h_array)
 
 
 if __name__ == '__main__':
@@ -181,7 +201,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--sample_image')
     parser.add_argument('-t', '--template_images', nargs='*')
     parser.add_argument('--alpha', type=float, default=25)
-    parser.add_argument('--thresh', type=float, default=0.5)
+    parser.add_argument('--thresh', type=float, default=0.8)
     args = parser.parse_args()
     
     image_path = args.sample_image
@@ -189,17 +209,21 @@ if __name__ == '__main__':
     template_list = args.template_images
     
     if not image_path or not template_list:
-        print("Either --sample_image or --template_images is not specified, so demo program running...")
+        print("Either --sample_image or --template_images is not specified, so demo program is running...")
         image_path = 'sample/sample1.jpg'
-        template_list = ['template/template1_1.png', 'template/template1_2.png', 'template/template1_dummy.png']
+        template_list = ['template/template1_1.png', 
+                 'template/template1_2.png', 
+                 'template/template1_3.png', 
+                 'template/template1_4.png',
+                 'template/template1_dummy.png']
         
-    image = make_img_tensor([image_path])
-    image_raw = cv2.imread(image_path)
-    template = make_img_tensor(template_list)
+    dataset = ImageDataset(template_list, image_path)
     
     print("define model...")
     model = CreateModel(model=models.vgg19(pretrained=True).features, alpha=args.alpha, use_cuda=args.cuda)
-    scores = run_one_sample(template, image)
-    boxes, indices = nms_multi(scores, template.size()[-1], template.size()[-2], thresh=args.thresh)
-    _ = plot_result_multi(image_raw, boxes, indices, show=False, save_name='result.png')
+    print("calculate score...")
+    scores, w_array, h_array = run_multi_sample(dataset)
+    print("nms...")
+    boxes, indices = nms_multi(scores, w_array, h_array, thresh=args.thresh)
+    _ = plot_result_multi(dataset.image_raw, boxes, indices, show=False, save_name='result.png')
     print("result.png was saved")

@@ -46,7 +46,7 @@ def plot_result(image_raw, boxes, show=False, save_name=None, color=(255, 0, 0))
         cv2.imwrite(save_name, d_img[:,:,::-1])
     return d_img
 
-def nms_multi(scores, w_ini, h_ini, thresh=0.7):
+def nms_multi(scores, w_array, h_array, thresh=0.7):
     indices = np.arange(scores.shape[0])
     maxes = np.max(scores.reshape(scores.shape[0], -1), axis=1)
     # omit not-matching templates
@@ -65,11 +65,10 @@ def nms_multi(scores, w_ini, h_ini, thresh=0.7):
             dots = np.concatenate([dots, dot], axis=1)
             dots_indices = np.concatenate([dots_indices, np.ones(dot.shape[-1]) * index], axis=0)
     dots_indices = dots_indices.astype(np.int)
-
-    x1 = dots[1] - w_ini//2
-    x2 = x1 + w_ini
-    y1 = dots[0] - h_ini//2
-    y2 = y1 + h_ini
+    x1 = dots[1] - w_array[dots_indices]//2
+    x2 = x1 + w_array[dots_indices]
+    y1 = dots[0] - h_array[dots_indices]//2
+    y2 = y1 + h_array[dots_indices]
 
     areas = (x2 - x1 + 1) * (y2 - y1 + 1)
     scores = scores[dots_indices, dots[0], dots[1]]
@@ -103,7 +102,7 @@ def nms_multi(scores, w_ini, h_ini, thresh=0.7):
 def plot_result_multi(image_raw, boxes, indices, show=False, save_name=None, color_list=None):
     d_img = image_raw.copy()
     if color_list is None:
-        color_list = color_palette("hls", len(np.unique(indices)))
+        color_list = color_palette("hls", indices.max()+1)
         color_list = list(map(lambda x: (int(x[0]*255), int(x[1]*255), int(x[2]*255)), color_list))
     for i in range(len(indices)):
         d_img = plot_result(d_img, boxes[i][None, :,:].copy(), color=color_list[indices[i]])
