@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import os
 import matplotlib.pyplot as plt
+from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,10 +16,7 @@ from lib import *
 
 
 class ImageDataset(torch.utils.data.Dataset):
-    """
-    define Dataset
-    """
-    def __init__(self, template_names: list, image_name: str, transform=None):
+    def __init__(self, template_dir_path, image_name, transform=None):
         self.transform = transform
         if not self.transform:
             self.transform = transforms.Compose([
@@ -28,7 +26,7 @@ class ImageDataset(torch.utils.data.Dataset):
                     std=[0.229, 0.224, 0.225],
                 )
             ])
-        self.template_names = template_names
+        self.template_path = list(template_dir_path.iterdir())
         self.image_name = image_name
         
         self.image_raw = cv2.imread(self.image_name)
@@ -39,13 +37,14 @@ class ImageDataset(torch.utils.data.Dataset):
         return len(self.template_names)
     
     def __getitem__(self, idx):
-        template = cv2.imread(self.template_names[idx])
+        template = cv2.imread(str(self.template_path[idx]))
         if self.transform:
             template = self.transform(template)
         return {'image': self.image.unsqueeze(0), 
                     'image_raw': self.image_raw, 
+                    'image_name': self.image_name,
                     'template': template.unsqueeze(0), 
-                    'template_name': self.template_names[idx], 
+                    'template_name': str(self.template_path[idx]), 
                     'template_h': template.size()[-2],
                    'template_w': template.size()[-1]}
 
@@ -136,21 +135,22 @@ class QATM():
     
     
 class CreateModel():
-    """
-    create model and return configuration maps
-    """
     def __init__(self, alpha, model, use_cuda):
         self.alpha = alpha
         self.featex = Featex(model, use_cuda)
-    def __call__(self, template, image):
+        self.I_feat = None
+        self.I_feat_name = None
+    def __call__(self, template, image, image_name):
         T_feat = self.featex(template)
-        I_feat = self.featex(image)
+        if self.I_feat_name is not image_name:
+            self.I_feat = self.featex(image)
+            self.I_feat_name = image_name
         conf_maps = None
         batchsize_T = T_feat.size()[0]
         for i in range(batchsize_T):
             T_feat_i = T_feat[i].unsqueeze(0)
-            I_feat, T_feat_i = MyNormLayer()(I_feat, T_feat_i)
-            dist = torch.einsum("xcab,xcde->xabde", I_feat / torch.norm(I_feat, dim=1, keepdim=True), T_feat_i / torch.norm(T_feat_i, dim=1, keepdim=True))
+            I_feat_norm, T_feat_i = MyNormLayer()(self.I_feat, T_feat_i)
+            dist = torch.einsum("xcab,xcde->xabde", I_feat_norm / torch.norm(I_feat_norm, dim=1, keepdim=True), T_feat_i / torch.norm(T_feat_i, dim=1, keepdim=True))
             conf_map = QATM(self.alpha)(dist)
             if conf_maps is None:
                 conf_maps = conf_map
@@ -158,9 +158,9 @@ class CreateModel():
                 conf_maps = torch.cat([conf_maps, conf_map], dim=0)
         return conf_maps
     
-
-def run_one_sample(template, image):
-    val = model(template, image)
+    
+def run_one_sample(template, image, image_name):
+    val = model(template, image, image_name)
     if val.is_cuda:
         val = val.cpu()
     val = val.numpy()
@@ -186,7 +186,7 @@ def run_multi_sample(dataset):
     w_array = []
     h_array = []
     for data in dataset:
-        score = run_one_sample(data['template'], data['image'])
+        score = run_one_sample(data['template'], data['image'], data['image_name'])
         if scores is None:
             scores = score
         else:
@@ -200,16 +200,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='QATM Pytorch Implementation')
     parser.add_argument('--cuda', action='store_true')
     parser.add_argument('-s', '--sample_image', default='sample/sample1.jpg')
-    parser.add_argument('-t', '--template_images_folder', default='template')
+    parser.add_argument('-t', '--template_images_dir', default='template/')
     parser.add_argument('--alpha', type=float, default=25)
     parser.add_argument('--thresh', type=float, default=0.8)
     args = parser.parse_args()
     
+    template_dir = args.template_images_dir
     image_path = args.sample_image
-    template_list = os.listdir(args.template_images_folder)
-    print(template_list)
-        
-    dataset = ImageDataset(template_list, image_path)
+    dataset = ImageDataset(Path(template_dir), image_path)
     
     print("define model...")
     model = CreateModel(model=models.vgg19(pretrained=True).features, alpha=args.alpha, use_cuda=args.cuda)
