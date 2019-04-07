@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import os
+import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
 import torch
@@ -16,7 +17,7 @@ from lib import *
 
 
 class ImageDataset(torch.utils.data.Dataset):
-    def __init__(self, template_dir_path, image_name, transform=None):
+    def __init__(self, template_dir_path, image_name, thresh_csv=None, transform=None):
         self.transform = transform
         if not self.transform:
             self.transform = transforms.Compose([
@@ -30,23 +31,34 @@ class ImageDataset(torch.utils.data.Dataset):
         self.image_name = image_name
         
         self.image_raw = cv2.imread(self.image_name)
+        
+        self.thresh_df = None
+        if thresh_csv:
+            self.thresh_df = pd.read_csv(thresh_csv)
+            
         if self.transform:
-            self.image = self.transform(self.image_raw)
+            self.image = self.transform(self.image_raw).unsqueeze(0)
         
     def __len__(self):
         return len(self.template_names)
     
     def __getitem__(self, idx):
-        template = cv2.imread(str(self.template_path[idx]))
+        template_path = str(self.template_path[idx])
+        template = cv2.imread(template_path)
         if self.transform:
             template = self.transform(template)
-        return {'image': self.image.unsqueeze(0), 
+        thresh = 0.7
+        if self.thresh_df is not None:
+            if self.thresh_df.path.isin([template_path]).sum() > 0:
+                thresh = float(self.thresh_df[self.thresh_df.path==template_path].thresh)
+        return {'image': self.image, 
                     'image_raw': self.image_raw, 
                     'image_name': self.image_name,
                     'template': template.unsqueeze(0), 
-                    'template_name': str(self.template_path[idx]), 
+                    'template_name': template_path, 
                     'template_h': template.size()[-2],
-                   'template_w': template.size()[-1]}
+                   'template_w': template.size()[-1],
+                   'thresh': thresh}
 
 
 class Featex():
@@ -185,6 +197,7 @@ def run_multi_sample(dataset):
     scores = None
     w_array = []
     h_array = []
+    thresh_list = []
     for data in dataset:
         score = run_one_sample(data['template'], data['image'], data['image_name'])
         if scores is None:
@@ -193,7 +206,8 @@ def run_multi_sample(dataset):
             scores = np.concatenate([scores, score], axis=0)
         w_array.append(data['template_w'])
         h_array.append(data['template_h'])
-    return np.array(scores), np.array(w_array), np.array(h_array)
+        thresh_list.append(data['thresh'])
+    return np.array(scores), np.array(w_array), np.array(h_array), thresh_list
 
 
 if __name__ == '__main__':
@@ -202,18 +216,18 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--sample_image', default='sample/sample1.jpg')
     parser.add_argument('-t', '--template_images_dir', default='template/')
     parser.add_argument('--alpha', type=float, default=25)
-    parser.add_argument('--thresh', type=float, default=0.8)
+    parser.add_argument('--thresh_csv', type=str, default='thresh_template.csv')
     args = parser.parse_args()
     
     template_dir = args.template_images_dir
     image_path = args.sample_image
-    dataset = ImageDataset(Path(template_dir), image_path)
+    dataset = ImageDataset(Path(template_dir), image_path, thresh_csv='thresh_template.csv')
     
     print("define model...")
     model = CreateModel(model=models.vgg19(pretrained=True).features, alpha=args.alpha, use_cuda=args.cuda)
     print("calculate score...")
-    scores, w_array, h_array = run_multi_sample(dataset)
+    scores, w_array, h_array, thresh_list = run_multi_sample(dataset)
     print("nms...")
-    boxes, indices = nms_multi(scores, w_array, h_array, thresh=args.thresh)
+    boxes, indices = nms_multi(scores, w_array, h_array, thresh_list)
     _ = plot_result_multi(dataset.image_raw, boxes, indices, show=False, save_name='result.png')
     print("result.png was saved")

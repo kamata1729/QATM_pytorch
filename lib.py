@@ -35,6 +35,7 @@ def nms(score, w_ini, h_ini, thresh=0.7):
     boxes = np.array([[x1[keep], y1[keep]], [x2[keep], y2[keep]]]).transpose(2, 0, 1)
     return boxes
 
+
 def plot_result(image_raw, boxes, show=False, save_name=None, color=(255, 0, 0)):
     # plot result
     d_img = image_raw.copy()
@@ -46,18 +47,18 @@ def plot_result(image_raw, boxes, show=False, save_name=None, color=(255, 0, 0))
         cv2.imwrite(save_name, d_img[:,:,::-1])
     return d_img
 
-def nms_multi(scores, w_array, h_array, thresh=0.7):
+
+def nms_multi(scores, w_array, h_array, thresh_list):
     indices = np.arange(scores.shape[0])
     maxes = np.max(scores.reshape(scores.shape[0], -1), axis=1)
     # omit not-matching templates
-    scores = scores[maxes > 0.2 * maxes.max()]
-    indices = indices[maxes > 0.2 * maxes.max()]
-    
+    scores_omit = scores[maxes > 0.1 * maxes.max()]
+    indices_omit = indices[maxes > 0.1 * maxes.max()]
     # extract candidate pixels from scores
     dots = None
     dos_indices = None
-    for index, score in zip(indices, scores):
-        dot = np.array(np.where(score > thresh*score.max()))
+    for index, score in zip(indices_omit, scores_omit):
+        dot = np.array(np.where(score > thresh_list[index]*score.max()))
         if dots is None:
             dots = dot
             dots_indices = np.ones(dot.shape[-1]) * index
@@ -92,12 +93,13 @@ def nms_multi(scores, w_array, h_array, thresh=0.7):
         inter = w * h
         ovr = inter / (areas[i] + areas[order[1:]] - inter)
 
-        inds = np.where(ovr <= 0.1)[0]
+        inds = np.where(ovr <= 0.05)[0]
         order = order[inds + 1]
         dots_indices = dots_indices[inds + 1]
         
     boxes = np.array([[x1[keep], y1[keep]], [x2[keep], y2[keep]]]).transpose(2,0,1)
     return boxes, np.array(keep_index)
+
 
 def plot_result_multi(image_raw, boxes, indices, show=False, save_name=None, color_list=None):
     d_img = image_raw.copy()
