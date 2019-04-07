@@ -12,6 +12,7 @@ Qiita(Japanese): https://qiita.com/kamata1729/items/11fd55992c740526f6fc
 * seaborn
 * scipy
 * sklearn
+* pathlib
 
 # Usage
 
@@ -21,18 +22,17 @@ or
 
 
 ```
-python qatm.py -s sample/sample1.jpg -t template/template1_1.png template/template1_2.png template/template1_dummy.png --cuda
+python qatm.py -s sample/sample1.jpg -t template --cuda
 ```
 
 * Add `--cuda` option to use GPU
 * Add `-s`/`--sample_image` to specify sample image  
     **only single** sample image can be specified in this present implementation  
-* Add `-t`/`--template_images` to specify template image(s)  
-    **single or multi** images can be specified as template image(s)  
+* Add `-t`/`--template_images_dir` to specify template image dir  
   
 **[notice]** If neither `-s` nor `-t` is specified, demo program will be executed, which is the same as:
 ```
-python qatm.py -s sample/sample1.jpg -t template/template1_1.png template/template1_2.png template/template1_dummy.png
+python qatm.py -s sample/sample1.jpg -t template
 ```
 
 * `--thresh` and `--alpha` option can also be added
