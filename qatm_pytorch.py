@@ -28,13 +28,6 @@ import copy
 from utils import *
 # %matplotlib inline
 
-import ast
-
-ast.FunctionDef
-
-ast.ClassDef
-
-
 # # CONVERT IMAGE TO TENSOR
 
 class ImageDataset(torch.utils.data.Dataset):
@@ -309,7 +302,7 @@ def plot_result_multi(image_raw, boxes, indices, show=False, save_name=None, col
 
 # # RUNNING
 
-def run_one_sample(template, image, image_name):
+def run_one_sample(model, template, image, image_name):
     val = model(template, image, image_name)
     if val.is_cuda:
         val = val.cpu()
@@ -331,13 +324,13 @@ def run_one_sample(template, image, image_name):
     return np.array(scores)
 
 
-def run_multi_sample(dataset):
+def run_multi_sample(model, dataset):
     scores = None
     w_array = []
     h_array = []
     thresh_list = []
     for data in dataset:
-        score = run_one_sample(data['template'], data['image'], data['image_name'])
+        score = run_one_sample(model, data['template'], data['image'], data['image_name'])
         if scores is None:
             scores = score
         else:
@@ -350,7 +343,7 @@ def run_multi_sample(dataset):
 
 model = CreateModel(model=models.vgg19(pretrained=True).features, alpha=25, use_cuda=True)
 
-scores, w_array, h_array, thresh_list = run_multi_sample(dataset)
+scores, w_array, h_array, thresh_list = run_multi_sample(model, dataset)
 
 boxes, indices = nms_multi(scores, w_array, h_array, thresh_list)
 
