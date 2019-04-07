@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import os
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
@@ -198,23 +199,15 @@ def run_multi_sample(dataset):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='QATM Pytorch Implementation')
     parser.add_argument('--cuda', action='store_true')
-    parser.add_argument('-s', '--sample_image')
-    parser.add_argument('-t', '--template_images', nargs='*')
+    parser.add_argument('-s', '--sample_image', default='sample/sample1.jpg')
+    parser.add_argument('-t', '--template_images_folder', default='template')
     parser.add_argument('--alpha', type=float, default=25)
     parser.add_argument('--thresh', type=float, default=0.8)
     args = parser.parse_args()
     
     image_path = args.sample_image
-    template_list = args.template_images
-    
-    if not image_path or not template_list:
-        print("Either --sample_image or --template_images is not specified, so demo program is running...")
-        image_path = 'sample/sample1.jpg'
-        template_list = ['template/template1_1.png', 
-                 'template/template1_2.png', 
-                 'template/template1_3.png', 
-                 'template/template1_4.png',
-                 'template/template1_dummy.png']
+    template_list = os.listdir(args.template_images_folder)
+    print(template_list)
         
     dataset = ImageDataset(template_list, image_path)
     
