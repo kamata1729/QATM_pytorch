@@ -1,43 +1,41 @@
+# ---
+# jupyter:
+#   jupytext:
+#     formats: ipynb,py
+#     text_representation:
+#       extension: .py
+#       format_name: light
+#       format_version: '1.3'
+#       jupytext_version: 1.0.5
+#   kernelspec:
+#     display_name: Python 3
+#     language: python
+#     name: python3
+# ---
+
 import numpy as np
 import cv2
-import os
-import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
+from seaborn import color_palette
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 from torchvision import models, transforms, utils
 import copy
-import argparse
 from utils import *
+# %matplotlib inline
 
-# +
-# import qatm_pytorch.py
 import ast
-import types
-import sys
 
-with open("qatm_pytorch.py") as f:
-       p = ast.parse(f.read())
+ast.FunctionDef
 
-for node in p.body[:]:
-    if not isinstance(node, ast.FunctionDef):
-        if not isinstance(node, ast.ClassDef):
-            if not isinstance(node, ast.Import):
-                if not isinstance(node, ast.ImportFrom):
-                    p.body.remove(node)
-
-module = types.ModuleType("mod")
-code = compile(p, "mod.py", 'exec')
-sys.modules["mod"] = module
-exec(code,  module.__dict__)
-
-from mod import *
+ast.ClassDef
 
 
-# -
+# # CONVERT IMAGE TO TENSOR
 
 class ImageDataset(torch.utils.data.Dataset):
     def __init__(self, template_dir_path, image_name, thresh_csv=None, transform=None):
@@ -84,10 +82,14 @@ class ImageDataset(torch.utils.data.Dataset):
                    'thresh': thresh}
 
 
+template_dir = 'template/'
+image_path = 'sample/sample1.jpg'
+dataset = ImageDataset(Path(template_dir), image_path, thresh_csv='thresh_template.csv')
+
+
+# ### EXTRACT FEATURE
+
 class Featex():
-    """
-    extract template/image feature through pretrained model
-    """
     def __init__(self, model, use_cuda):
         self.use_cuda = use_cuda
         self.feature1 = None
@@ -121,9 +123,6 @@ class Featex():
 
 
 class MyNormLayer():
-    """
-    normalize feature maps
-    """
     def __call__(self, x1, x2):
         bs, _ , H, W = x1.size()
         _, _, h, w = x2.size()
@@ -137,36 +136,6 @@ class MyNormLayer():
         x1 = x1.view(bs, -1, H, W)
         x2 = x2.view(bs, -1, h, w)
         return [x1, x2]
-
-
-class QATM():
-    """
-    QATM module to get configuration map
-    """
-    def __init__(self, alpha):
-        self.alpha = alpha
-        
-    def __call__(self, x):
-        batch_size, ref_row, ref_col, qry_row, qry_col = x.size()
-        x = x.view(batch_size, ref_row*ref_col, qry_row*qry_col)
-        xm_ref = x - torch.max(x, dim=1, keepdim=True)[0]
-        xm_qry = x - torch.max(x, dim=2, keepdim=True)[0]
-        confidence = torch.sqrt(F.softmax(self.alpha*xm_ref, dim=1) * F.softmax(self.alpha * xm_qry, dim=2))
-        conf_values, ind3 = torch.topk(confidence, 1)
-        ind1, ind2 = torch.meshgrid(torch.arange(batch_size), torch.arange(ref_row*ref_col))
-        ind1 = ind1.flatten()
-        ind2 = ind2.flatten()
-        ind3 = ind3.flatten()
-        if x.is_cuda:
-            ind1 = ind1.cuda()
-            ind2 = ind2.cuda()
-        
-        values = confidence[ind1, ind2, ind3]
-        values = torch.reshape(values, [batch_size, ref_row, ref_col, 1])
-        return values
-    def compute_output_shape( self, input_shape ):
-        bs, H, W, _, _ = input_shape
-        return (bs, H, W, 1)
 
 
 class CreateModel():
@@ -193,6 +162,152 @@ class CreateModel():
                 conf_maps = torch.cat([conf_maps, conf_map], dim=0)
         return conf_maps
 
+
+class QATM():
+    def __init__(self, alpha):
+        self.alpha = alpha
+        
+    def __call__(self, x):
+        batch_size, ref_row, ref_col, qry_row, qry_col = x.size()
+        x = x.view(batch_size, ref_row*ref_col, qry_row*qry_col)
+        xm_ref = x - torch.max(x, dim=1, keepdim=True)[0]
+        xm_qry = x - torch.max(x, dim=2, keepdim=True)[0]
+        confidence = torch.sqrt(F.softmax(self.alpha*xm_ref, dim=1) * F.softmax(self.alpha * xm_qry, dim=2))
+        conf_values, ind3 = torch.topk(confidence, 1)
+        ind1, ind2 = torch.meshgrid(torch.arange(batch_size), torch.arange(ref_row*ref_col))
+        ind1 = ind1.flatten()
+        ind2 = ind2.flatten()
+        ind3 = ind3.flatten()
+        if x.is_cuda:
+            ind1 = ind1.cuda()
+            ind2 = ind2.cuda()
+        
+        values = confidence[ind1, ind2, ind3]
+        values = torch.reshape(values, [batch_size, ref_row, ref_col, 1])
+        return values
+    def compute_output_shape( self, input_shape ):
+        bs, H, W, _, _ = input_shape
+        return (bs, H, W, 1)
+
+
+# # NMS AND PLOT
+
+# ## SINGLE
+
+def nms(score, w_ini, h_ini, thresh=0.7):
+    dots = np.array(np.where(score > thresh*score.max()))
+    
+    x1 = dots[1] - w_ini//2
+    x2 = x1 + w_ini
+    y1 = dots[0] - h_ini//2
+    y2 = y1 + h_ini
+
+    areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+    scores = score[dots[0], dots[1]]
+    order = scores.argsort()[::-1]
+
+    keep = []
+    while order.size > 0:
+        i = order[0]
+        keep.append(i)
+        xx1 = np.maximum(x1[i], x1[order[1:]])
+        yy1 = np.maximum(y1[i], y1[order[1:]])
+        xx2 = np.minimum(x2[i], x2[order[1:]])
+        yy2 = np.minimum(y2[i], y2[order[1:]])
+
+        w = np.maximum(0.0, xx2 - xx1 + 1)
+        h = np.maximum(0.0, yy2 - yy1 + 1)
+        inter = w * h
+        ovr = inter / (areas[i] + areas[order[1:]] - inter)
+
+        inds = np.where(ovr <= 0.5)[0]
+        order = order[inds + 1]
+    boxes = np.array([[x1[keep], y1[keep]], [x2[keep], y2[keep]]]).transpose(2, 0, 1)
+    return boxes
+
+
+def plot_result(image_raw, boxes, show=False, save_name=None, color=(255, 0, 0)):
+    # plot result
+    d_img = image_raw.copy()
+    for box in boxes:
+        d_img = cv2.rectangle(d_img, tuple(box[0]), tuple(box[1]), color, 3)
+    if show:
+        plt.imshow(d_img)
+    if save_name:
+        cv2.imwrite(save_name, d_img[:,:,::-1])
+    return d_img
+
+
+# ## MULTI
+
+def nms_multi(scores, w_array, h_array, thresh_list):
+    indices = np.arange(scores.shape[0])
+    maxes = np.max(scores.reshape(scores.shape[0], -1), axis=1)
+    # omit not-matching templates
+    scores_omit = scores[maxes > 0.1 * maxes.max()]
+    indices_omit = indices[maxes > 0.1 * maxes.max()]
+    # extract candidate pixels from scores
+    dots = None
+    dos_indices = None
+    for index, score in zip(indices_omit, scores_omit):
+        dot = np.array(np.where(score > thresh_list[index]*score.max()))
+        if dots is None:
+            dots = dot
+            dots_indices = np.ones(dot.shape[-1]) * index
+        else:
+            dots = np.concatenate([dots, dot], axis=1)
+            dots_indices = np.concatenate([dots_indices, np.ones(dot.shape[-1]) * index], axis=0)
+    dots_indices = dots_indices.astype(np.int)
+    x1 = dots[1] - w_array[dots_indices]//2
+    x2 = x1 + w_array[dots_indices]
+    y1 = dots[0] - h_array[dots_indices]//2
+    y2 = y1 + h_array[dots_indices]
+
+    areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+    scores = scores[dots_indices, dots[0], dots[1]]
+    order = scores.argsort()[::-1]
+    dots_indices = dots_indices[order]
+    
+    keep = []
+    keep_index = []
+    while order.size > 0:
+        i = order[0]
+        index = dots_indices[0]
+        keep.append(i)
+        keep_index.append(index)
+        xx1 = np.maximum(x1[i], x1[order[1:]])
+        yy1 = np.maximum(y1[i], y1[order[1:]])
+        xx2 = np.minimum(x2[i], x2[order[1:]])
+        yy2 = np.minimum(y2[i], y2[order[1:]])
+
+        w = np.maximum(0.0, xx2 - xx1 + 1)
+        h = np.maximum(0.0, yy2 - yy1 + 1)
+        inter = w * h
+        ovr = inter / (areas[i] + areas[order[1:]] - inter)
+
+        inds = np.where(ovr <= 0.05)[0]
+        order = order[inds + 1]
+        dots_indices = dots_indices[inds + 1]
+        
+    boxes = np.array([[x1[keep], y1[keep]], [x2[keep], y2[keep]]]).transpose(2,0,1)
+    return boxes, np.array(keep_index)
+
+
+def plot_result_multi(image_raw, boxes, indices, show=False, save_name=None, color_list=None):
+    d_img = image_raw.copy()
+    if color_list is None:
+        color_list = color_palette("hls", indices.max()+1)
+        color_list = list(map(lambda x: (int(x[0]*255), int(x[1]*255), int(x[2]*255)), color_list))
+    for i in range(len(indices)):
+        d_img = plot_result(d_img, boxes[i][None, :,:].copy(), color=color_list[indices[i]])
+    if show:
+        plt.imshow(d_img)
+    if save_name:
+        cv2.imwrite(save_name, d_img[:,:,::-1])
+    return d_img
+
+
+# # RUNNING
 
 def run_one_sample(template, image, image_name):
     val = model(template, image, image_name)
@@ -233,26 +348,14 @@ def run_multi_sample(dataset):
     return np.array(scores), np.array(w_array), np.array(h_array), thresh_list
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='QATM Pytorch Implementation')
-    parser.add_argument('--cuda', action='store_true')
-    parser.add_argument('-s', '--sample_image', default='sample/sample1.jpg')
-    parser.add_argument('-t', '--template_images_dir', default='template/')
-    parser.add_argument('--alpha', type=float, default=25)
-    parser.add_argument('--thresh_csv', type=str, default='thresh_template.csv')
-    args = parser.parse_args()
-    
-    template_dir = args.template_images_dir
-    image_path = args.sample_image
-    dataset = ImageDataset(Path(template_dir), image_path, thresh_csv='thresh_template.csv')
-    
-    print("define model...")
-    model = CreateModel(model=models.vgg19(pretrained=True).features, alpha=args.alpha, use_cuda=args.cuda)
-    print("calculate score...")
-    scores, w_array, h_array, thresh_list = run_multi_sample(dataset)
-    print("nms...")
-    boxes, indices = nms_multi(scores, w_array, h_array, thresh_list)
-    _ = plot_result_multi(dataset.image_raw, boxes, indices, show=False, save_name='result.png')
-    print("result.png was saved")
+model = CreateModel(model=models.vgg19(pretrained=True).features, alpha=25, use_cuda=True)
+
+scores, w_array, h_array, thresh_list = run_multi_sample(dataset)
+
+boxes, indices = nms_multi(scores, w_array, h_array, thresh_list)
+
+d_img = plot_result_multi(dataset.image_raw, boxes, indices, show=True, save_name='result_sample.png')
+
+plt.imshow(scores[2])
 
 
