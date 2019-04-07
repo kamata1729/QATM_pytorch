@@ -3,3 +3,5 @@ __pycache__
 sample_private/
 template_private/
 result*
+thresh_template_private.csv
+make_csv.ipynb
