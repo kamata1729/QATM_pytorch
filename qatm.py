@@ -205,7 +205,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     image_path = args.sample_image
-    # template images must have same size
     template_list = args.template_images
     
     if not image_path or not template_list:
