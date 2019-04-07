@@ -14,7 +14,7 @@ import argparse
 from utils import *
 
 # +
-# import qatm_pytorch.py
+# import functions and classes from qatm_pytorch.py
 import ast
 import types
 import sys
@@ -23,11 +23,8 @@ with open("qatm_pytorch.py") as f:
        p = ast.parse(f.read())
 
 for node in p.body[:]:
-    if not isinstance(node, ast.FunctionDef):
-        if not isinstance(node, ast.ClassDef):
-            if not isinstance(node, ast.Import):
-                if not isinstance(node, ast.ImportFrom):
-                    p.body.remove(node)
+    if not isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom)):
+        p.body.remove(node)
 
 module = types.ModuleType("mod")
 code = compile(p, "mod.py", 'exec')
