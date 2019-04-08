@@ -1,7 +1,6 @@
 from __future__ import print_function, division
 import matplotlib.pyplot as plt
 import math
-from scipy.ndimage.filters import convolve
 from sklearn.metrics import auc
 import numpy as np
 import cv2
