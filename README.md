@@ -10,7 +10,6 @@ Qiita(Japanese): https://qiita.com/kamata1729/items/11fd55992c740526f6fc
 * torchvision(0.2.1)
 * cv2
 * seaborn
-* scipy
 * sklearn
 * pathlib
 
