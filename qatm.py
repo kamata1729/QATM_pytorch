@@ -1,20 +1,13 @@
-import numpy as np
-import cv2
-import os
-import pandas as pd
-import matplotlib.pyplot as plt
 from pathlib import Path
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import torchvision
 from torchvision import models, transforms, utils
-import copy
 import argparse
 from utils import *
 
 # +
 # import functions and classes from qatm_pytorch.py
+print("import qatm_pytorch.py...")
 import ast
 import types
 import sys
