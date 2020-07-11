@@ -1,4 +1,4 @@
-# Pytorch Implementation of QATM:Quality-Aware Template Matching For Deep Learning
+# Pytorch Non-Official Implementation of QATM:Quality-Aware Template Matching For Deep Learning
 
 arxiv: https://arxiv.org/abs/1903.07254  
 original code (tensorflow+keras): https://github.com/cplusx/QATM  
