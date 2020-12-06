@@ -348,3 +348,4 @@ boxes, indices = nms_multi(scores, w_array, h_array, thresh_list)
 d_img = plot_result_multi(dataset.image_raw, boxes, indices, show=True, save_name='result_sample.png')
 
 plt.imshow(scores[2])
+
