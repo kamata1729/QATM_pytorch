@@ -43,19 +43,19 @@ class ImageDataset(torch.utils.data.Dataset):
             ])
         self.template_path = list(template_dir_path.iterdir())
         self.image_name = image_name
-
+        
         self.image_raw = cv2.imread(self.image_name)
-
+        
         self.thresh_df = None
         if thresh_csv:
             self.thresh_df = pd.read_csv(thresh_csv)
-
+            
         if self.transform:
             self.image = self.transform(self.image_raw).unsqueeze(0)
-
+        
     def __len__(self):
         return len(self.template_names)
-
+    
     def __getitem__(self, idx):
         template_path = str(self.template_path[idx])
         template = cv2.imread(template_path)
@@ -65,11 +65,11 @@ class ImageDataset(torch.utils.data.Dataset):
         if self.thresh_df is not None:
             if self.thresh_df.path.isin([template_path]).sum() > 0:
                 thresh = float(self.thresh_df[self.thresh_df.path==template_path].thresh)
-        return {'image': self.image,
-                    'image_raw': self.image_raw,
+        return {'image': self.image, 
+                    'image_raw': self.image_raw, 
                     'image_name': self.image_name,
-                    'template': template.unsqueeze(0),
-                    'template_name': template_path,
+                    'template': template.unsqueeze(0), 
+                    'template_name': template_path, 
                     'template_h': template.size()[-2],
                    'template_w': template.size()[-1],
                    'thresh': thresh}
@@ -95,13 +95,13 @@ class Featex():
             self.model = self.model.cuda()
         self.model[2].register_forward_hook(self.save_feature1)
         self.model[16].register_forward_hook(self.save_feature2)
-
+        
     def save_feature1(self, module, input, output):
         self.feature1 = output.detach()
-
+    
     def save_feature2(self, module, input, output):
         self.feature2 = output.detach()
-
+        
     def __call__(self, input, mode='big'):
         if self.use_cuda:
             input = input.cuda()
@@ -109,7 +109,7 @@ class Featex():
         if mode=='big':
             # resize feature1 to the same size of feature2
             self.feature1 = F.interpolate(self.feature1, size=(self.feature2.size()[2], self.feature2.size()[3]), mode='bilinear', align_corners=True)
-        else:
+        else:        
             # resize feature2 to the same size of feature1
             self.feature2 = F.interpolate(self.feature2, size=(self.feature1.size()[2], self.feature1.size()[3]), mode='bilinear', align_corners=True)
         return torch.cat((self.feature1, self.feature2), dim=1)
@@ -159,7 +159,7 @@ class CreateModel():
 class QATM():
     def __init__(self, alpha):
         self.alpha = alpha
-
+        
     def __call__(self, x):
         batch_size, ref_row, ref_col, qry_row, qry_col = x.size()
         x = x.view(batch_size, ref_row*ref_col, qry_row*qry_col)
@@ -174,7 +174,7 @@ class QATM():
         if x.is_cuda:
             ind1 = ind1.cuda()
             ind2 = ind2.cuda()
-
+        
         values = confidence[ind1, ind2, ind3]
         values = torch.reshape(values, [batch_size, ref_row, ref_col, 1])
         return values
@@ -189,7 +189,7 @@ class QATM():
 
 def nms(score, w_ini, h_ini, thresh=0.7):
     dots = np.array(np.where(score > thresh*score.max()))
-
+    
     x1 = dots[1] - w_ini//2
     x2 = x1 + w_ini
     y1 = dots[0] - h_ini//2
@@ -260,7 +260,7 @@ def nms_multi(scores, w_array, h_array, thresh_list):
     scores = scores[dots_indices, dots[0], dots[1]]
     order = scores.argsort()[::-1]
     dots_indices = dots_indices[order]
-
+    
     keep = []
     keep_index = []
     while order.size > 0:
@@ -281,7 +281,7 @@ def nms_multi(scores, w_array, h_array, thresh_list):
         inds = np.where(ovr <= 0.05)[0]
         order = order[inds + 1]
         dots_indices = dots_indices[inds + 1]
-
+        
     boxes = np.array([[x1[keep], y1[keep]], [x2[keep], y2[keep]]]).transpose(2,0,1)
     return boxes, np.array(keep_index)
 
@@ -308,7 +308,7 @@ def run_one_sample(model, template, image, image_name):
         val = val.cpu()
     val = val.numpy()
     val = np.log(val)
-
+    
     batch_size = val.shape[0]
     scores = []
     for i in range(batch_size):
@@ -317,7 +317,7 @@ def run_one_sample(model, template, image, image_name):
         gray = cv2.resize( gray, (image.size()[-1], image.size()[-2]) )
         h = template.size()[-2]
         w = template.size()[-1]
-        score = compute_score( gray, w, h)
+        score = compute_score( gray, w, h) 
         score[score>-1e-7] = score.min()
         score = np.exp(score / (h*w)) # reverse number range back after computing geometry average
         scores.append(score)
@@ -336,7 +336,6 @@ def run_multi_sample(model, dataset):
         w_array.append(data['template_w'])
         h_array.append(data['template_h'])
         thresh_list.append(data['thresh'])
-
     return np.squeeze(np.array(scores), axis=1), np.array(w_array), np.array(h_array), thresh_list
 
 
@@ -349,5 +348,3 @@ boxes, indices = nms_multi(scores, w_array, h_array, thresh_list)
 d_img = plot_result_multi(dataset.image_raw, boxes, indices, show=True, save_name='result_sample.png')
 
 plt.imshow(scores[2])
-
-
