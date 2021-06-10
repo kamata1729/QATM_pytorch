@@ -119,13 +119,14 @@ class MyNormLayer():
     def __call__(self, x1, x2):
         bs, _ , H, W = x1.size()
         _, _, h, w = x2.size()
+        eps = 1e-12
         x1 = x1.view(bs, -1, H*W)
         x2 = x2.view(bs, -1, h*w)
         concat = torch.cat((x1, x2), dim=2)
         x_mean = torch.mean(concat, dim=2, keepdim=True)
         x_std = torch.std(concat, dim=2, keepdim=True)
-        x1 = (x1 - x_mean) / x_std
-        x2 = (x2 - x_mean) / x_std
+        x1 = (x1 - x_mean) / (x_std + eps)
+        x2 = (x2 - x_mean) / (x_std + eps)
         x1 = x1.view(bs, -1, H, W)
         x2 = x2.view(bs, -1, h, w)
         return [x1, x2]
