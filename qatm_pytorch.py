@@ -225,9 +225,9 @@ def plot_result(image_raw, boxes, show=False, save_name=None, color=(255, 0, 0))
     for box in boxes:
         d_img = cv2.rectangle(d_img, tuple(box[0]), tuple(box[1]), color, 3)
     if show:
-        plt.imshow(d_img)
+        plt.imshow(d_img[:,:,::-1])
     if save_name:
-        cv2.imwrite(save_name, d_img[:,:,::-1])
+        cv2.imwrite(save_name, d_img)
     return d_img
 
 
@@ -294,9 +294,9 @@ def plot_result_multi(image_raw, boxes, indices, show=False, save_name=None, col
     for i in range(len(indices)):
         d_img = plot_result(d_img, boxes[i][None, :,:].copy(), color=color_list[indices[i]])
     if show:
-        plt.imshow(d_img)
+        plt.imshow(d_img[:,:,::-1])
     if save_name:
-        cv2.imwrite(save_name, d_img[:,:,::-1])
+        cv2.imwrite(save_name, d_img)
     return d_img
 
 
